@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+build/
+dist/
+
+# 打包产物
+*.spec
+!*.spec.bak
+
+# 编辑器 / IDE
+.idea/
+.vscode/
+*.iml
+
+# 测试期临时产物
+.tmp-perf/
+.tmp-*/
+
+# 系统
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 日志与本地状态
+*.log
+.filecleanup/
+
+# WorkBuddy 工作区数据（本地记忆与会话数据，不进仓库）
+.workbuddy/

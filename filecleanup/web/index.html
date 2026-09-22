@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FileCleanup · 本地文件清理与分析</title>
+<link rel="preload" href="/vendor/d3.slim.min.js" as="script" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+
+<!-- ============================== 顶部：操作区 ============================== -->
+<header class="topbar">
+  <div class="row row-main">
+    <div class="brand">🗂 FileCleanup <span class="ver" id="verText"></span></div>
+    <div class="path-box">
+      <input id="pathInput" class="path-input" spellcheck="false"
+             placeholder="输入要扫描的目录，例如 D:\Data 或 C:\Users\me\Downloads" />
+      <select id="rootSelect" class="root-select" title="快速选择常用目录">
+        <option value="">快速选择…</option>
+      </select>
+      <button id="btnScan" class="primary">开始扫描</button>
+      <button id="btnCancel" disabled>取消</button>
+    </div>
+    <div class="head-tools">
+      <button id="btnTheme" class="icon" title="切换深色 / 浅色主题">🌙</button>
+      <button id="btnHelp" class="icon" title="快捷键与说明">?</button>
+      <button id="btnQuit" title="退出程序：关闭本地服务并释放端口">退出</button>
+    </div>
+  </div>
+
+  <div class="row row-tools">
+    <span class="group-label">标签</span>
+    <label class="chk"><input type="checkbox" id="chkShowExt" checked /> 显示扩展名</label>
+    <label class="chk"><input type="checkbox" id="chkExtZh" /> 显示中文释义</label>
+    <label class="chk"><input type="checkbox" id="chkShowSize" /> 显示体积</label>
+    <label class="chk"><input type="checkbox" id="chkThick" checked /> 支干粗细表占比</label>
+    <label class="chk"><input type="checkbox" id="chkProportional" /> 体积比例布局</label>
+    <span class="sep"></span>
+    <input id="filterInput" class="filter" placeholder="按名称查找（按 / 聚焦）" />
+    <button id="btnFind">下一个</button>
+    <label class="chk">最小
+      <select id="minSize">
+        <option value="0">不限</option>
+        <option value="1048576">≥ 1 MB</option>
+        <option value="10485760">≥ 10 MB</option>
+        <option value="104857600">≥ 100 MB</option>
+        <option value="1073741824">≥ 1 GB</option>
+      </select>
+    </label>
+    <span class="grow"></span>
+    <button id="btnCollapse">全部折叠</button>
+    <button id="btnFit">适应窗口</button>
+    <span id="legend" class="legend"></span>
+  </div>
+
+  <div class="row row-progress">
+    <div class="bar"><i id="barFill"></i></div>
+    <span id="progText" class="prog-text">就绪：选择目录后点「开始扫描」</span>
+  </div>
+</header>
+
+<!-- ============================== 中部：画布 + 侧栏 ============================== -->
+<main>
+  <section id="canvas">
+    <svg id="tree"></svg>
+
+    <div id="empty" class="empty">
+      <div class="empty-title">还没有扫描任何目录</div>
+      <ol class="guide">
+        <li><b>① 选目录</b>　上方填路径，或用「快速选择」挑盘符 / 下载目录</li>
+        <li><b>② 扫描</b>　后台递归统计，进度条实时更新，界面不会卡住</li>
+        <li><b>③ 清理</b>　按体积从大到小挑出大文件，加入清单后二次确认删除</li>
+      </ol>
+      <div class="empty-sub">单击展开 / 折叠 · 双击定位到资源管理器 · 右键加入清理清单</div>
+    </div>
+
+    <!-- 侧栏收起后用它重新展开（放在画布内，不会跟着侧栏一起消失） -->
+    <button id="btnSideOpen" class="side-open" title="展开侧栏">
+      ⟨<span id="sideCartBadge" class="badge hidden">0</span>
+    </button>
+
+    <div class="zoom-ctl">
+      <button id="btnZoomIn" class="icon" title="放大">＋</button>
+      <button id="btnZoomOut" class="icon" title="缩小">－</button>
+      <button id="btnFit2" class="icon" title="适应窗口">⤢</button>
+    </div>
+  </section>
+
+  <aside id="side">
+    <div class="tabs">
+      <button class="tab active" data-tab="detail">详情</button>
+      <button class="tab" data-tab="top">空间 TOP</button>
+      <button class="tab" data-tab="cart">清单<span id="cartBadge" class="badge">0</span></button>
+      <span class="grow"></span>
+      <button id="btnSideToggle" class="icon" title="收起 / 展开侧栏">⟩</button>
+    </div>
+
+    <div class="tabpane active" id="paneDetail">
+      <div id="details" class="details">
+        <div class="muted">单击左侧节点查看详情；双击可在资源管理器中定位。</div>
+      </div>
+    </div>
+
+    <div class="tabpane" id="paneTop">
+      <div class="pane-toolbar">
+        <span class="muted small">占空间最大的条目</span>
+        <span class="grow"></span>
+        <button id="btnTopRefresh" class="mini">刷新</button>
+      </div>
+      <div id="topList" class="top-list"><div class="muted small">扫描完成后自动列出。</div></div>
+    </div>
+
+    <div class="tabpane" id="paneCart">
+      <div class="pane-toolbar">
+        <span class="muted small">加入后需二次确认才会删除</span>
+        <span class="grow"></span>
+        <button id="btnClearCart" class="mini">清空</button>
+      </div>
+      <div id="cartList" class="cart-list"><div class="muted small">还没有加入任何条目。</div></div>
+      <div class="cart-foot">
+        <div>合计：<b id="cartSize">0 B</b></div>
+        <button id="btnDelete" class="danger" disabled>删除…</button>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<!-- ============================== 底部状态栏 ============================== -->
+<footer class="statusbar">
+  <span id="statLeft" class="muted">就绪</span>
+  <span class="grow"></span>
+  <span id="statRight" class="muted"></span>
+</footer>
+
+<!-- ============================== 浮层 ============================== -->
+<div id="tooltip" class="tooltip hidden"></div>
+
+<div id="ctxmenu" class="ctx-menu hidden">
+  <div class="ctx-item" data-act="open">在资源管理器中定位</div>
+  <div class="ctx-item" data-act="cart">加入清理清单</div>
+  <div class="ctx-item" data-act="copy">复制完整路径</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" data-act="expand">展开全部子级</div>
+  <div class="ctx-item" data-act="collapse">折叠全部子级</div>
+</div>
+
+<!-- 退出后的遮罩：服务已停，页面不再可用 -->
+<div id="quitOverlay" class="quit-overlay hidden">
+  <div class="quit-card">
+    <div class="quit-title">服务已停止</div>
+    <div class="quit-sub">
+      本地服务已关闭，端口已释放，本页无法继续使用。<br />
+      需要再次使用时，重新运行 FileCleanup 即可。
+    </div>
+  </div>
+</div>
+
+<div id="modal" class="modal-mask hidden">
+  <div class="modal">
+    <div class="modal-head" id="modalTitle">提示</div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot">
+      <span id="modalNote" class="muted small"></span>
+      <button id="modalCancel">取消</button>
+      <button id="modalOk" class="danger">确定</button>
+    </div>
+  </div>
+</div>
+
+<script src="/vendor/d3.slim.min.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

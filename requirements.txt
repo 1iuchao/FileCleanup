@@ -1,0 +1,12 @@
+# FileCleanup 运行依赖
+#
+# 核心功能（目录扫描 / 本地 HTTP 服务 / 安全删除 / 目录树可视化）
+# 100% 使用 Python 标准库实现，运行前无需 pip install 任何包。
+#
+# 唯一的前端第三方组件 D3.js v7.9.0（ISC License）已随仓库分发在
+# filecleanup/web/vendor/d3.v7.min.js，离线可用，无需 npm install。
+#
+# 环境要求：Python >= 3.10
+#
+# 如需运行自带测试，同样只依赖标准库：
+#   python -m unittest discover -s tests -v
