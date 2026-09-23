@@ -52,7 +52,17 @@ const state = {
   // 只显示中文释义，也可以两者都显示（或都不显示，只留文件名）。
   showExt: true, showZh: false, showSize: false, thick: true, proportional: false,
   minSize: 0, filter: '', theme: 'dark', sideCollapsed: false,
+  // StarPort 接入：被托管时主题/材质以平台为唯一真源，本地不持久化
+  material: 'liquid-glass', hosted: false, blend: false,
 };
+
+// 10 套材质（与 UI_STANDARD.md §3 一一对应）
+const MATERIALS = [
+  ['liquid-glass', '液态玻璃'], ['glassmorphism', '玻璃拟态'], ['acrylic', '亚克力'],
+  ['mica', '云母'], ['neumorphism', '新拟物'], ['claymorphism', '粘土拟态'],
+  ['holographic', '全息虹彩'], ['liquid-metal', '液态金属'],
+  ['brushed-metal', '磨砂金属'], ['aurora-glass', '极光玻璃'],
+];
 
 // ------------------------------------------------------------------ 工具
 function humanSize(b) {
@@ -122,14 +132,24 @@ function loadPrefs() {
     }
     if (typeof state.showExt !== 'boolean') state.showExt = true;
   } catch (e) { /* 首次运行没有存档，忽略 */ }
+
+  // 首屏脚本（index.html 内联）已解析过 URL 参数，这里直接沿用，避免二次闪变
+  const boot = window.__FC_BOOT__ || {};
+  state.hosted = !!boot.hosted;
+  state.blend = !!boot.blend;
+  state.theme = boot.theme || state.theme || 'dark';
+  state.material = boot.material || state.material || 'liquid-glass';
 }
 function savePrefs() {
   try {
-    localStorage.setItem(PREF_KEY, JSON.stringify({
+    const data = {
       showExt: state.showExt, showZh: state.showZh, showSize: state.showSize,
       thick: state.thick, proportional: state.proportional, minSize: state.minSize,
-      theme: state.theme, sideCollapsed: state.sideCollapsed,
-    }));
+      theme: state.theme, sideCollapsed: state.sideCollapsed, material: state.material,
+    };
+    // 被星港托管时平台是主题唯一真源：不写主题/材质，免得和平台打架（标准 §8）
+    if (state.hosted) { delete data.theme; delete data.material; }
+    localStorage.setItem(PREF_KEY, JSON.stringify(data));
   } catch (e) { /* 隐私模式下写不了，忽略 */ }
 }
 function applyPrefsToUI() {
@@ -139,10 +159,56 @@ function applyPrefsToUI() {
   $('chkThick').checked = state.thick;
   $('chkProportional').checked = state.proportional;
   $('minSize').value = String(state.minSize);
-  document.documentElement.dataset.theme = state.theme;
-  $('btnTheme').textContent = state.theme === 'dark' ? '🌙' : '☀️';
   document.body.classList.toggle('side-collapsed', state.sideCollapsed);
   $('btnSideToggle').textContent = state.sideCollapsed ? '⟨' : '⟩';
+
+  // 材质下拉（独立运行时可选；被托管时交给平台，隐藏掉）
+  const sel = $('materialSelect');
+  sel.innerHTML = MATERIALS.map(([id, name]) =>
+    `<option value="${id}">${name}</option>`).join('');
+  sel.value = state.material;
+  applyTheme(state.theme, state.material);
+  if (state.hosted) {
+    $('materialWrap').classList.add('hidden');
+    $('btnTheme').classList.add('hidden');
+  }
+}
+
+// ------------------------------------------------------------------ 主题（StarPort 标准 §1/§3）
+/** 应用基调与材质。tokens 为平台下发的 CSS 变量表（可选）。 */
+function applyTheme(theme, material, tokens) {
+  const d = document.documentElement;
+  if (theme) { state.theme = theme; d.dataset.theme = theme; }
+  if (material) { state.material = material; d.dataset.material = material; }
+  if (tokens) {
+    for (const [k, v] of Object.entries(tokens)) {
+      if (k && v) d.style.setProperty(k, v);
+    }
+  }
+  if (!state.hosted) savePrefs();
+  $('btnTheme').textContent = state.theme === 'dark' ? '🌙' : '☀️';
+  const sel = $('materialSelect');
+  if (sel.value !== state.material) sel.value = state.material;
+  // 目录连线的颜色取自基调变量；此时画布可能还没初始化
+  if (typeof svg !== 'undefined' && svg) scheduleRender();
+}
+
+/** 背景融合：只让最外层透明，内部 surface 保留自己的底（标准 §2.5）。 */
+function applyBlend(on) {
+  state.blend = !!on;
+  document.documentElement.dataset.spBlend = on ? '1' : '0';
+}
+
+function bindPlatformTheme() {
+  window.addEventListener('message', (e) => {
+    const d = e.data;
+    if (!d || d.type !== 'starport:theme') return;
+    state.hosted = true;
+    applyTheme(d.theme, d.material, d.tokens);
+    applyBlend(d.blend !== false);
+    $('materialWrap').classList.add('hidden');
+    $('btnTheme').classList.add('hidden');
+  });
 }
 
 // ------------------------------------------------------------------ 初始化
@@ -150,6 +216,7 @@ async function init() {
   $('verText').textContent = 'v1.0.0';
   loadPrefs();
   applyPrefsToUI();
+  bindPlatformTheme();     // 监听 starport:theme，运行时实时跟随平台
   bindEvents();
   initSvg();
 
@@ -208,11 +275,9 @@ function bindEvents() {
   $('btnZoomOut').onclick = () => svg.call(zoom.scaleBy, 0.8);
 
   $('btnTheme').onclick = () => {
-    state.theme = state.theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.dataset.theme = state.theme;
-    $('btnTheme').textContent = state.theme === 'dark' ? '🌙' : '☀️';
-    savePrefs(); scheduleRender();     // 目录连线的颜色由主题决定，需重绘
+    applyTheme(state.theme === 'dark' ? 'light' : 'dark', state.material);
   };
+  $('materialSelect').onchange = (e) => applyTheme(state.theme, e.target.value);
   $('btnHelp').onclick = showHelp;
   $('btnQuit').onclick = confirmQuit;
   $('btnSideToggle').onclick = () => setSideCollapsed(!state.sideCollapsed);

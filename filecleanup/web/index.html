@@ -1,39 +1,68 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="dark">
+<html lang="zh-CN" data-theme="dark" data-material="liquid-glass">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>FileCleanup · 本地文件清理与分析</title>
 <link rel="preload" href="/vendor/d3.slim.min.js" as="script" />
 <link rel="stylesheet" href="/styles.css" />
+<script>
+/* ------------------------------------------------------------------
+   首屏主题引导（必须在渲染前同步执行，避免"先画一遍默认色再闪变"）
+   遵循 StarPort 界面标准 §1 通道 A：从 URL 参数读主题/材质/背景融合。
+   被托管（sp-source=starport）时主题以平台为唯一真源；
+   独立运行时退回自带默认 + 本地偏好。
+------------------------------------------------------------------ */
+(function () {
+  var qs = new URLSearchParams(location.search);
+  var d = document.documentElement;
+  var hosted = qs.get('sp-source') === 'starport' ||
+               qs.has('sp-theme') || qs.has('sp-blend') || qs.has('sp-material');
+  var pref = {};
+  try { pref = JSON.parse(localStorage.getItem('filecleanup.prefs.v1') || '{}') || {}; } catch (e) {}
+
+  var theme = qs.get('sp-theme') || (hosted ? null : pref.theme) || 'dark';
+  var material = qs.get('sp-material') || (hosted ? null : pref.material) || 'liquid-glass';
+  // 背景融合：缺省视为开，但只有被托管时才把自己变透明（独立运行需要自己的底）
+  var blend = qs.get('sp-blend') !== '0' && hosted;
+
+  d.dataset.theme = theme;
+  d.dataset.material = material;
+  d.dataset.spHosted = hosted ? '1' : '0';
+  d.dataset.spBlend = blend ? '1' : '0';
+
+  window.__FC_BOOT__ = { theme: theme, material: material, hosted: hosted, blend: blend };
+})();
+</script>
 </head>
 <body>
 
 <!-- ============================== 顶部：操作区 ============================== -->
-<header class="topbar">
-  <div class="row row-main">
+<header class="topbar surface surface--blur">
+  <div class="bar-row">
     <div class="brand">🗂 FileCleanup <span class="ver" id="verText"></span></div>
     <div class="path-box">
       <input id="pathInput" class="path-input" spellcheck="false"
              placeholder="输入要扫描的目录，例如 D:\Data 或 C:\Users\me\Downloads" />
-      <select id="rootSelect" class="root-select" title="快速选择常用目录">
+      <select id="rootSelect" title="快速选择常用目录">
         <option value="">快速选择…</option>
       </select>
       <button id="btnScan" class="primary">开始扫描</button>
       <button id="btnCancel" disabled>取消</button>
     </div>
     <div class="head-tools">
-      <button id="btnTheme" class="icon" title="切换深色 / 浅色主题">🌙</button>
+      <button id="btnTheme" class="icon" title="切换深色 / 浅色基调">🌙</button>
       <button id="btnHelp" class="icon" title="快捷键与说明">?</button>
       <button id="btnQuit" title="退出程序：关闭本地服务并释放端口">退出</button>
     </div>
   </div>
 
-  <div class="row row-tools">
+  <div class="bar-row">
     <span class="group-label">标签</span>
     <label class="chk"><input type="checkbox" id="chkShowExt" checked /> 显示扩展名</label>
     <label class="chk"><input type="checkbox" id="chkExtZh" /> 显示中文释义</label>
     <label class="chk"><input type="checkbox" id="chkShowSize" /> 显示体积</label>
+    <span class="sep"></span>
     <label class="chk"><input type="checkbox" id="chkThick" checked /> 支干粗细表占比</label>
     <label class="chk"><input type="checkbox" id="chkProportional" /> 体积比例布局</label>
     <span class="sep"></span>
@@ -49,12 +78,16 @@
       </select>
     </label>
     <span class="grow"></span>
+    <label class="chk" id="materialWrap" title="独立运行时的外观材质；被星港托管时由平台下发">
+      材质
+      <select id="materialSelect"></select>
+    </label>
     <button id="btnCollapse">全部折叠</button>
     <button id="btnFit">适应窗口</button>
     <span id="legend" class="legend"></span>
   </div>
 
-  <div class="row row-progress">
+  <div class="bar-row">
     <div class="bar"><i id="barFill"></i></div>
     <span id="progText" class="prog-text">就绪：选择目录后点「开始扫描」</span>
   </div>
@@ -76,18 +109,18 @@
     </div>
 
     <!-- 侧栏收起后用它重新展开（放在画布内，不会跟着侧栏一起消失） -->
-    <button id="btnSideOpen" class="side-open" title="展开侧栏">
+    <button id="btnSideOpen" class="card side-open" title="展开侧栏">
       ⟨<span id="sideCartBadge" class="badge hidden">0</span>
     </button>
 
-    <div class="zoom-ctl">
+    <div class="zoom-ctl card">
       <button id="btnZoomIn" class="icon" title="放大">＋</button>
       <button id="btnZoomOut" class="icon" title="缩小">－</button>
       <button id="btnFit2" class="icon" title="适应窗口">⤢</button>
     </div>
   </section>
 
-  <aside id="side">
+  <aside id="side" class="surface surface--blur">
     <div class="tabs">
       <button class="tab active" data-tab="detail">详情</button>
       <button class="tab" data-tab="top">空间 TOP</button>
@@ -127,7 +160,7 @@
 </main>
 
 <!-- ============================== 底部状态栏 ============================== -->
-<footer class="statusbar">
+<footer class="statusbar surface">
   <span id="statLeft" class="muted">就绪</span>
   <span class="grow"></span>
   <span id="statRight" class="muted"></span>
@@ -136,7 +169,7 @@
 <!-- ============================== 浮层 ============================== -->
 <div id="tooltip" class="tooltip hidden"></div>
 
-<div id="ctxmenu" class="ctx-menu hidden">
+<div id="ctxmenu" class="ctx-menu surface surface--blur hidden">
   <div class="ctx-item" data-act="open">在资源管理器中定位</div>
   <div class="ctx-item" data-act="cart">加入清理清单</div>
   <div class="ctx-item" data-act="copy">复制完整路径</div>
@@ -157,7 +190,7 @@
 </div>
 
 <div id="modal" class="modal-mask hidden">
-  <div class="modal">
+  <div class="modal surface surface--blur">
     <div class="modal-head" id="modalTitle">提示</div>
     <div class="modal-body" id="modalBody"></div>
     <div class="modal-foot">

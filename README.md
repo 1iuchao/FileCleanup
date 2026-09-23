@@ -112,7 +112,51 @@ python tools/build_exe.py --onefile        # → dist/FileCleanup.exe（单文�
 
 ---
 
-## 阶段一：界面设计
+## 界面标准（StarPort 接入）
+
+界面按 StarPort《界面统一标准》重写，可作为该平台的接入参考实现。
+
+### 三层结构
+
+| 层 | 本项目对应 | 说明 |
+| --- | --- | --- |
+| 背景层 | `body` 的渐变底 | 不参与任何材质计算；融合模式下整层透明 |
+| 材质层 | `.surface` / `.surface--blur` | 半透明 + 模糊 + 高光 + 噪点 + 阴影 + 描边，参数全部走 CSS 变量 |
+| 内容层 | 文字、按钮、SVG 树 | 永远实色，不与材质做整体 `opacity` 叠加；画布文字用 `paint-order` 描边，保证任意背景下可读 |
+
+### 主题由平台下发
+
+| 通道 | 实现 |
+| --- | --- |
+| 首屏 URL 参数 | `sp-theme` / `sp-material` / `sp-source` / `sp-blend` / `sp-surface` —— `index.html` 内联脚本在渲染前同步解析，**无闪色** |
+| 运行时 | 监听 `starport:theme` postMessage，读取 `theme` / `material` / `blend` / `tokens`，token 直接铺到 CSS 变量 |
+| 托管判定 | `sp-source=starport` → 隐藏本地基调/材质控件，且**不再本地持久化主题**（平台是唯一真源） |
+| 独立运行 | 退回自带默认（深色 + 液态玻璃），顶栏可切基调与 10 套材质 |
+
+### 10 套材质
+
+液态玻璃、玻璃拟态、亚克力、云母、新拟物、粘土拟态、全息虹彩、液态金属、磨砂金属、极光玻璃。
+每套只定义一组 `--mat-*` 变量，**加第 11 套不用改任何选择器**；
+亮/暗差异由基调层的输入变量（`--tint-*` / `--spec-hi*` / `--shade` / `--line` / `--drop-*`）承载，
+亮色下已按标准换成"深色内阴影 + 冷灰边线"，不会出现白边隐形。
+
+### 背景融合
+
+`sp-blend=1` 时只让 `html` / `body` 透明，内部卡片保留自己的底 —— 观感是"卡片浮在平台背景上"。
+融合模式下正文带轻微 `text-shadow`。独立运行（拿不到该参数）时保留自己的背景，不会变透明。
+
+### 性能与可访问性
+
+- 同屏 `backdrop-filter` ≤ 3：顶栏 / 侧栏 / 弹窗或右键菜单；tooltip 与状态栏不加模糊
+- 材质装饰（高光、噪点）用 `::before` / `::after` + `z-index:-1`，落在容器背景之上、内容之下
+- 噪点用内联 SVG，零依赖；无 WebGL / Canvas / Shader / 系统透明 API
+- `prefers-reduced-transparency` → 材质降级为不透明纯色、关闭 `backdrop-filter`
+- `prefers-reduced-motion` → 关闭所有过渡
+- 描边用 `border`、圆角用 `px`，125% / 150% / 200% 缩放下无接缝、无边框断裂
+
+---
+
+## 阶段一：界面设计（功能与交互）
 
 ### 布局结构
 
