@@ -213,7 +213,11 @@ function bindPlatformTheme() {
 
 // ------------------------------------------------------------------ 初始化
 async function init() {
-  $('verText').textContent = 'v1.0.0';
+  $('verText').textContent = 'v1.1.0';               // 兜底，随后用服务端版本覆盖
+  try {
+    const h = await api('/api/health');
+    if (h && h.version) $('verText').textContent = 'v' + h.version;
+  } catch (e) { /* 拿不到就用兜底值 */ }
   loadPrefs();
   applyPrefsToUI();
   bindPlatformTheme();     // 监听 starport:theme，运行时实时跟随平台

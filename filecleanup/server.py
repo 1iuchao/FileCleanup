@@ -26,6 +26,7 @@ from .config import (
     HOST,
     PORT_FALLBACK_TRIES,
     TOP_N_DEFAULT,
+    VERSION,
     WEB_DIR,
 )
 from .deleter import delete_path
@@ -247,7 +248,7 @@ class Handler(BaseHTTPRequestHandler):
         scanner = STATE.scanner
 
         if path == "/api/health":
-            return self._json({"ok": True, "version": "0.1.0"})
+            return self._json({"ok": True, "version": VERSION})
 
         if path == "/api/extmap":
             return self._json({

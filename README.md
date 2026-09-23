@@ -5,8 +5,8 @@
 
 仓库地址：https://github.com/1iuchao/FileCleanup
 
-**不想装 Python？** 直接下 Windows 绿色版（7.8 MB，解压即用）：
-[FileCleanup-v1.0.0-windows-x64.zip](https://github.com/1iuchao/FileCleanup/releases/download/v1.0.0/FileCleanup-v1.0.0-windows-x64.zip)
+**不想装 Python？** 直接下 Windows 绿色版（约 8 MB，解压即用）：
+[FileCleanup-v1.1.0-windows-x64.zip](https://github.com/1iuchao/FileCleanup/releases/download/v1.1.0/FileCleanup-v1.1.0-windows-x64.zip)
 （全部版本见 [Releases](https://github.com/1iuchao/FileCleanup/releases)）
 
 本项目按三个阶段完成：**① 界面设计 → ② 性能优化 → ③ 打包封装**，最终产物是

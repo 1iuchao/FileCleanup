@@ -51,11 +51,12 @@ def curl(user: str, token: str, args: list[str]) -> dict:
         sys.exit(f"GitHub 返回异常：{res.stdout[:300]}{res.stderr[:300]}")
 
 
-def build_body(zip_path: Path, sha: str) -> str:
+def build_body(zip_path: Path, sha: str, notes: str = "") -> str:
     size_mb = zip_path.stat().st_size / 1048576
+    extra = f"## 本次更新\n\n{notes}\n\n" if notes else ""
     return f"""## FileCleanup {zip_path.stem.split('-')[1]} · Windows 绿色版
 
-**免安装、不需要 Python**：下载解压后双击 `FileCleanup.exe`，浏览器会自动打开 `http://127.0.0.1:8770`。
+{extra}**免安装、不需要 Python**：下载解压后双击 `FileCleanup.exe`，浏览器会自动打开 `http://127.0.0.1:8770`。
 
 ### 能干什么
 
@@ -97,6 +98,7 @@ def main() -> int:
     ap.add_argument("--zip", help="zip 路径，默认取 dist 下最新的一个")
     ap.add_argument("--tag", help="tag 名，默认从文件名推断，如 v1.0.0")
     ap.add_argument("--repo", default=DEFAULT_REPO, help="owner/repo")
+    ap.add_argument("--notes", help="本次更新说明，支持 \\n 换行，追加到正文「本次更新」小节")
     args = ap.parse_args()
 
     if args.zip:
@@ -118,7 +120,7 @@ def main() -> int:
     payload = {
         "tag_name": tag,
         "name": f"FileCleanup {tag} · Windows 绿色版",
-        "body": build_body(zip_path, sha),
+        "body": build_body(zip_path, sha, (args.notes or "").replace("\\n", "\n")),
         "draft": False,
         "prerelease": False,
         "target_commitish": "main",
